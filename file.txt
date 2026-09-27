@@ -1,1 +1,2 @@
 base
+modules/some_module/1.0.0 -> attacker-controlled archive URL
