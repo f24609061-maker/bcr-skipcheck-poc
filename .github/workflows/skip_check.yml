@@ -1,0 +1,50 @@
+# Faithful mirror of bazelbuild/bazel-central-registry .github/workflows/skip_check.yml
+# (job gate) + actions/bcr-pr-reviewer runSkipCheck() (handler). The ONLY change is that
+# the label-add is inlined here instead of calling the external action, so the PoC is
+# self-contained. No authorization logic is added or removed.
+name: skip_check
+on:
+  issue_comment:
+    types: [created, edited]
+permissions:
+  contents: read
+
+jobs:
+  comment_bot:
+    # >>> THE ONLY GATE: comment body prefix. No author_association / membership / maintainer check. <<<
+    if: startsWith(github.event.comment.body, '@bazel-io skip_check ')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Show the trigger (association is available but the code never reads it)
+        run: |
+          echo "commenter          : ${{ github.event.comment.user.login }}"
+          echo "author_association : ${{ github.event.comment.author_association }}"
+          echo "comment body       : ${{ github.event.comment.body }}"
+
+      - name: runSkipCheck() equivalent — add skip label with NO authorization check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const TRIGGER = '@bazel-io skip_check ';
+            const body = context.payload.comment.body.trim();
+            if (!body.startsWith(TRIGGER)) return;
+            const check = body.slice(TRIGGER.length);
+            const map = {
+              unstable_url:        'skip-url-stability-check',
+              compatibility_level: 'skip-compatibility-level-check',
+              incompatible_flags:  'skip-incompatible-flags-test',
+            };
+            const label = map[check];
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.issue.number;
+            if (label) {
+              await github.rest.issues.addLabels({ owner, repo, issue_number, labels: [label] });
+              await github.rest.reactions.createForIssueComment({
+                owner, repo, comment_id: context.payload.comment.id, content: '+1',
+              });
+              core.notice(`Added '${label}' to #${issue_number} on a comment by `
+                + `${context.payload.comment.user.login} `
+                + `(association: ${context.payload.comment.author_association}) — no auth check ran.`);
+            }
