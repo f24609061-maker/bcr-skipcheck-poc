@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       issues: write
+      pull-requests: write
     steps:
       - name: Show the trigger (association is available but the code never reads it)
         run: |
